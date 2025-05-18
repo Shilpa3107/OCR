@@ -2,12 +2,11 @@ import easyocr
 import cv2
 from matplotlib import pyplot as plt
 import numpy as np
-from tkinter import Tk, filedialog
+import tkinter as tk
+from tkinter import filedialog, scrolledtext
 
-# Suppress tkinter root window
-Tk().withdraw()
-
-# Let user choose an image file
+# Select image file
+tk.Tk().withdraw()
 image_path = filedialog.askopenfilename(
     title='Select an Image',
     filetypes=[('Image Files', '*.png *.jpg *.jpeg *.bmp *.tiff')]
@@ -17,38 +16,48 @@ if not image_path:
     print("No image selected.")
     exit()
 
-# Initialize EasyOCR reader
+# Run OCR
 reader = easyocr.Reader(['en'], gpu=False)
-
-# Perform OCR
 results = reader.readtext(image_path)
 
-# Display the image using OpenCV
+# Show image with bounding boxes
 image = cv2.imread(image_path)
-
-# Draw OCR results on the image
 for (bbox, text, prob) in results:
-    # Unpack the bounding box
-    (top_left, top_right, bottom_right, bottom_left) = bbox
-    top_left = tuple(map(int, top_left))
-    bottom_right = tuple(map(int, bottom_right))
+    (tl, tr, br, bl) = bbox
+    tl = tuple(map(int, tl))
+    br = tuple(map(int, br))
+    cv2.rectangle(image, tl, br, (0, 255, 0), 2)
+    cv2.putText(image, text, (tl[0], tl[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
-    # Draw rectangle and text
-    cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)
-    cv2.putText(image, text, (top_left[0], top_left[1] - 10), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-
-# Convert BGR to RGB for displaying with matplotlib
+# Convert and show using matplotlib
 image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-# Show the result
 plt.figure(figsize=(10, 10))
 plt.imshow(image_rgb)
 plt.axis('off')
 plt.title('OCR Result')
 plt.show()
 
-# Print detected text to console
-print("\nDetected Text:")
-for (_, text, _) in results:
-    print(text)
+# GUI window to copy text
+text_window = tk.Tk()
+text_window.title("Copy Detected Text")
+
+# ScrolledText for output
+text_area = scrolledtext.ScrolledText(text_window, wrap=tk.WORD, width=80, height=20, font=("Courier", 12))
+text_area.pack(padx=10, pady=10)
+
+# Join all text
+text_content = "\n".join([text for (_, text, _) in results])
+text_area.insert(tk.END, text_content)
+text_area.configure(state='normal')  # Keep it editable for copy
+
+# Clipboard copy function
+def copy_to_clipboard():
+    text_window.clipboard_clear()
+    text_window.clipboard_append(text_content)
+    text_window.update()
+
+# Add a copy button
+copy_btn = tk.Button(text_window, text="Copy All to Clipboard", command=copy_to_clipboard)
+copy_btn.pack(pady=5)
+
+text_window.mainloop()
